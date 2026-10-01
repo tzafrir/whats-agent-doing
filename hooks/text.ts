@@ -68,3 +68,31 @@ export function durationOf(ms: number): string {
 
   return `${minutes}m ${String(rest).padStart(2, '0')}s`
 }
+
+/**
+ * A label safe to draw: control, format and line-separator characters out
+ * (the engine refuses a drawing holding one), whitespace collapsed, and cut
+ * to `max`. Labels carry paths, commands and thoughts the model wrote.
+ */
+export function printable(text: string, max: number): string {
+  const spaced = text.replace(/[\p{Cc}\p{Zl}\p{Zp}]/gu, ' ').replace(/\p{Cf}/gu, '')
+
+  return clip(oneLine(spaced), max)
+}
+
+/**
+ * Counts the words a streamed chunk adds, carrying whether the text so far
+ * ends inside a word, so a reply is never counted again from its start.
+ *
+ * @param chunk the newly streamed text
+ * @param isInWord whether the text before it ended inside a word
+ */
+export function wordsAdded(chunk: string, isInWord: boolean): { added: number; isInWord: boolean } {
+  const words = chunk.match(/\S+/g)?.length ?? 0
+  const continues = isInWord && /^\S/.test(chunk)
+
+  return {
+    added: continues ? words - 1 : words,
+    isInWord: chunk === '' ? isInWord : /\S$/.test(chunk),
+  }
+}

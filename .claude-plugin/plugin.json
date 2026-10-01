@@ -1,9 +1,21 @@
 {
-  "name": "whats-claude-doing",
-  "version": "0.2.1",
-  "description": "What's Claude Doing: a small box above the prompt that always says what Claude is doing right now (reading, thinking, writing, preparing or running a tool, waiting for you) and expands to show what it has done.",
+  "name": "whats-agent-doing",
+  "displayName": "What's Agent Doing",
+  "version": "0.3.0",
+  "description": "A small box above the prompt that always says what the agent is doing right now (reading, thinking, writing, running a tool, waiting for you) and expands to show what it has done.",
   "author": {
     "name": "Tzafrir Rehan"
   },
+  "homepage": "https://github.com/tzafrir/whats-agent-doing",
+  "repository": "https://github.com/tzafrir/whats-agent-doing",
+  "license": "MIT",
+  "keywords": [
+    "status",
+    "activity",
+    "progress",
+    "ui",
+    "mod",
+    "function-hooks"
+  ],
   "types": "./types/index.d.ts"
 }

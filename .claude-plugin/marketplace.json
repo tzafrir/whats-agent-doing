@@ -1,0 +1,16 @@
+{
+  "$schema": "https://json.schemastore.org/claude-code-marketplace.json",
+  "name": "tzafrir",
+  "description": "Tzafrir Rehan's Claude Code plugins",
+  "owner": {
+    "name": "Tzafrir Rehan"
+  },
+  "plugins": [
+    {
+      "name": "whats-agent-doing",
+      "source": "./",
+      "description": "A small box above the prompt that always says what the agent is doing right now (reading, thinking, writing, running a tool, waiting for you) and expands to show what it has done.",
+      "category": "productivity"
+    }
+  ]
+}

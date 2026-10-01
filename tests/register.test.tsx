@@ -3,7 +3,7 @@ import { describe, expect, mock, test } from 'claude-code/testing'
 import type { Engine } from 'claude-code/testing'
 
 const BAND = {
-  plugin: 'whats-claude-doing',
+  plugin: 'whats-agent-doing',
   surface: 'terminal',
   component: 'AbovePrompt',
   props: {
@@ -201,6 +201,28 @@ describe('register', () => {
     expect(box.seen[1]).toContain('Reading your prompt')
     expect(box.seen[2]).toContain('Run the tests')
     expect(box.seen.join(' ')).not.toContain('npm test')
+  })
+
+  test('control characters in a label never take the box down', async ($, on) => {
+    const { box } = seat(on, [])
+    const ui = await mount($, box)
+    const esc = String.fromCharCode(27)
+    const bel = String.fromCharCode(7)
+    const rlo = String.fromCharCode(0x202e)
+
+    await $.turn.start({ text: 'x', turnId: 't1' })
+    await $.tool.call({ tool: 'Read', file_path: `src/${esc}]0;title${bel}${esc}[31m${rlo}red.ts` })
+    await $.tool.call({ tool: 'Read', file_path: `src/${'x'.repeat(200000)}.ts` })
+    await ui.press({ key: 'toggle' })
+
+    const history = (await ui.find({ key: 'history' }))?.text ?? ''
+
+    expect(box.seen[0]).toContain('Reading')
+    expect(box.seen[0]).toContain('red.ts')
+    expect(box.seen[0]).not.toContain(esc)
+    expect(box.seen[0]).not.toContain(rlo)
+    expect(box.seen[1]?.length ?? 0).toBeLessThan(400)
+    expect(history).toContain('red.ts')
   })
 
   test('a call waiting on a permission prompt says so', async ($, on) => {

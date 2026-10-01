@@ -8,7 +8,7 @@ import type {
   ActivityPhase,
 } from '../types'
 import { activityOf, partialArgsOf } from './activity-of'
-import { clip, durationOf, oneLine, plural, sizeOf, thoughtOf, wordsIn } from './text'
+import { clip, durationOf, oneLine, plural, printable, sizeOf, thoughtOf, wordsAdded } from './text'
 
 const IDLE: ActivityNow = {
   phase: 'idle',
@@ -22,18 +22,19 @@ const MAX_THOUGHT_CHARS = 70
 const MAX_THOUGHT_BUFFER = 2000
 const MAX_INPUT_HEAD = 4000
 const LARGE_INPUT_CHARS = 1024
+const MAX_LABEL_CHARS = 120
 const STREAM_THROTTLE_MS = 250
 const TICK_MS = 1000
 
-const now = atom({ plugin: 'whats-claude-doing', key: 'now' } as const, IDLE)
+const now = atom({ plugin: 'whats-agent-doing', key: 'now' } as const, IDLE)
 
 const history = atom(
-  { plugin: 'whats-claude-doing', key: 'history' } as const,
+  { plugin: 'whats-agent-doing', key: 'history' } as const,
   [] as readonly ActivityEntry[],
 )
 
 const isExpanded = atom(
-  { plugin: 'whats-claude-doing', key: 'isExpanded' } as const,
+  { plugin: 'whats-agent-doing', key: 'isExpanded' } as const,
   false,
 )
 
@@ -89,7 +90,10 @@ type Live = {
   isFirstRequest: boolean
   resultsToReview: number
   thought: string
-  reply: string
+  thoughtWords: number
+  isThoughtInWord: boolean
+  replyWords: number
+  isReplyInWord: boolean
   composing: { tool: string; head: string; chars: number } | null
   lastAction: string | null
   lastTurn: string | null
@@ -99,7 +103,7 @@ type Live = {
 }
 
 /**
- * Registers What's Claude Doing: a box above the prompt naming what Claude is
+ * Registers What's Agent Doing: a box above the prompt naming what Claude is
  * doing right now, and, behind its triangle, what it has done.
  *
  * The model's own stream (`turn.step`) says whether it is reading, thinking
@@ -120,7 +124,10 @@ export const register: Register = on => {
     isFirstRequest: false,
     resultsToReview: 0,
     thought: '',
-    reply: '',
+    thoughtWords: 0,
+    isThoughtInWord: false,
+    replyWords: 0,
+    isReplyInWord: false,
     composing: null,
     lastAction: null,
     lastTurn: null,
@@ -347,7 +354,7 @@ export const register: Register = on => {
         <Box key={`row-${i}`} flexDirection="row">
           <Text color={markColor}>{`${mark} `}</Text>
           <Text bold={entry.kind === 'turn'} dimColor={isQuiet} wrap="truncate-end">
-            {entry.label}
+            {printable(entry.label, MAX_LABEL_CHARS)}
           </Text>
           <Text dimColor>{took}</Text>
         </Box>
@@ -384,7 +391,7 @@ export const register: Register = on => {
           />
           <Text color={color}>{isWorking ? ' ● ' : ' ○ '}</Text>
           <Text bold>Claude: </Text>
-          <Text wrap="truncate-end">{headline.label}</Text>
+          <Text wrap="truncate-end">{printable(headline.label, MAX_LABEL_CHARS)}</Text>
           <Text dimColor>{elapsed}</Text>
         </Box>
         {body}
@@ -448,7 +455,7 @@ function current(live: Live): ActivityNow {
     case 'writing':
       return {
         phase: 'writing',
-        label: `Writing the reply · ${plural(wordsIn(live.reply), 'word')}`,
+        label: `Writing the reply · ${plural(live.replyWords, 'word')}`,
         sinceMs,
       }
     case 'composing': {
@@ -512,7 +519,7 @@ async function enter($: EngineInterface, live: Live, next: ModelPhase): Promise<
   const durationMs = nowMs - live.phaseStartMs
 
   if (live.phase === 'thinking') {
-    const words = wordsIn(live.thought)
+    const words = live.thoughtWords
 
     await remember($, {
       kind: 'thought',
@@ -522,10 +529,10 @@ async function enter($: EngineInterface, live: Live, next: ModelPhase): Promise<
     })
   }
 
-  if (live.phase === 'writing' && live.reply.trim() !== '') {
+  if (live.phase === 'writing' && live.replyWords > 0) {
     await remember($, {
       kind: 'reply',
-      label: `Wrote the reply (${plural(wordsIn(live.reply), 'word')})`,
+      label: `Wrote the reply (${plural(live.replyWords, 'word')})`,
       durationMs,
       outcome: 'ok',
     })
@@ -533,10 +540,13 @@ async function enter($: EngineInterface, live: Live, next: ModelPhase): Promise<
 
   if (next === 'thinking') {
     live.thought = ''
+    live.thoughtWords = 0
+    live.isThoughtInWord = false
   }
 
   if (next === 'writing') {
-    live.reply = ''
+    live.replyWords = 0
+    live.isReplyInWord = false
   }
 
   live.phase = next
@@ -551,7 +561,11 @@ async function follow($: EngineInterface, live: Live, chunk: TurnStepChunk): Pro
 
       await enter($, live, 'thinking')
       live.resultsToReview = 0
+      const { added, isInWord } = wordsAdded(chunk.text, live.isThoughtInWord)
+
       live.thought = (live.thought + chunk.text).slice(-MAX_THOUGHT_BUFFER)
+      live.thoughtWords += added
+      live.isThoughtInWord = isInWord
       await publish($, live, isNew)
 
       return
@@ -561,7 +575,10 @@ async function follow($: EngineInterface, live: Live, chunk: TurnStepChunk): Pro
 
       await enter($, live, 'writing')
       live.resultsToReview = 0
-      live.reply += chunk.text
+      const { added, isInWord } = wordsAdded(chunk.text, live.isReplyInWord)
+
+      live.replyWords += added
+      live.isReplyInWord = isInWord
       await publish($, live, isNew)
 
       return

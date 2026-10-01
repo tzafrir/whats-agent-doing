@@ -1,4 +1,4 @@
 {
-  "description": "What's Claude Doing: the model's stream, tool calls, approvals, subagents, compaction and turns keep a headline and a history current, drawn in the AbovePrompt band",
+  "description": "What's Agent Doing: the model's stream, tool calls, approvals, subagents, compaction and turns keep a headline and a history current, drawn in the AbovePrompt band",
   "modules": ["./register.tsx"]
 }

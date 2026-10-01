@@ -1,3 +1,4 @@
-# Written by /plugin-types in a Claude Code session; regenerate rather than commit.
+# Written by Claude Code when it loads the plugin from this folder.
+.claude-plugin/types/
 .claude/types/
 node_modules/

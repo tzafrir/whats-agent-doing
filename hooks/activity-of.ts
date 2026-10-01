@@ -3,7 +3,7 @@ import { clip, oneLine } from './text'
 const MAX_DETAIL_CHARS = 60
 
 /**
- * Says in a few words what a tool call is doing, for What's Claude Doing.
+ * Says in a few words what a tool call is doing, for What's Agent Doing.
  *
  * @param tool the tool's name; a string, as the declared names are only the
  *   tools of the build that wrote the types (Grep and Glob are on some only)

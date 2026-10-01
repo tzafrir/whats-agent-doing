@@ -37,7 +37,7 @@ export type ActivityEntry = {
 
 declare module 'claude-code' {
   interface PluginState {
-    'whats-claude-doing': {
+    'whats-agent-doing': {
       now: ActivityNow
       history: readonly ActivityEntry[]
       isExpanded: boolean
