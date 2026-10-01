@@ -1,27 +1,23 @@
-import type { ToolCallInput } from 'claude-code'
+import { clip, oneLine } from './text'
 
 const MAX_DETAIL_CHARS = 60
 
 /**
- * Says in a few words what a tool call is doing, for the activity box.
+ * Says in a few words what a tool call is doing, for What's Claude Doing.
  *
- * @param e the `tool.call` input
+ * @param tool the tool's name; a string, as the declared names are only the
+ *   tools of the build that wrote the types (Grep and Glob are on some only)
+ * @param args the call's arguments, whole or as far as they have streamed
  * @returns a short label such as `Reading register.tsx`
  */
-export function activityOf(e: ToolCallInput): string {
-  const args = e as unknown as Record<string, unknown>
-
+export function activityOf(tool: string, args: Record<string, unknown>): string {
   const arg = (key: string): string => {
     const value = args[key]
 
-    return typeof value === 'string' ? clip(oneLine(value)) : ''
+    return typeof value === 'string' ? clip(oneLine(value), MAX_DETAIL_CHARS) : ''
   }
 
   const file = (key: string): string => baseName(arg(key))
-
-  // A string: the declared names are only the tools of the session that
-  // wrote the types, and other sessions have others (Grep, Glob, ...).
-  const tool: string = e.tool
 
   switch (tool) {
     case 'Bash':
@@ -63,14 +59,28 @@ export function activityOf(e: ToolCallInput): string {
   return `Using ${tool}`
 }
 
-function oneLine(text: string): string {
-  return text.replace(/\s+/g, ' ').trim()
+/**
+ * The string arguments a tool call's input has streamed so far, read from
+ * its partial JSON: enough to name the file or command before it is whole.
+ */
+export function partialArgsOf(json: string): Record<string, unknown> {
+  const args: Record<string, unknown> = {}
+
+  for (const match of json.matchAll(/"([a-z_]+)"\s*:\s*"((?:[^"\\]|\\.)*)/g)) {
+    const [, key = '', raw = ''] = match
+
+    args[key] ??= unescaped(raw)
+  }
+
+  return args
 }
 
-function clip(text: string): string {
-  return text.length > MAX_DETAIL_CHARS
-    ? `${text.slice(0, MAX_DETAIL_CHARS - 1)}…`
-    : text
+function unescaped(raw: string): string {
+  try {
+    return JSON.parse(`"${raw}"`) as string
+  } catch {
+    return raw
+  }
 }
 
 function baseName(path: string): string {

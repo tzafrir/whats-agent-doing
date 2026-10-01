@@ -1,8 +1,9 @@
 {
-  "name": "activity-box",
-  "version": "0.1.0",
-  "description": "A small box above the prompt that always says what Claude is doing right now: thinking, which tool it is running and on what, or idle.",
+  "name": "whats-claude-doing",
+  "version": "0.2.0",
+  "description": "What's Claude Doing: a small box above the prompt that always says what Claude is doing right now (reading, thinking, writing, preparing or running a tool, waiting for you) and expands to show what it has done.",
   "author": {
     "name": "Tzafrir Rehan"
-  }
+  },
+  "types": "./types/index.d.ts"
 }
