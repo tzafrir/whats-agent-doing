@@ -1,6 +1,6 @@
 {
   "name": "whats-claude-doing",
-  "version": "0.2.0",
+  "version": "0.2.1",
   "description": "What's Claude Doing: a small box above the prompt that always says what Claude is doing right now (reading, thinking, writing, preparing or running a tool, waiting for you) and expands to show what it has done.",
   "author": {
     "name": "Tzafrir Rehan"
