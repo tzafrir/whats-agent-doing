@@ -1,0 +1,8 @@
+{
+  "name": "activity-box",
+  "version": "0.1.0",
+  "description": "A small box above the prompt that always says what Claude is doing right now: thinking, which tool it is running and on what, or idle.",
+  "author": {
+    "name": "Tzafrir Rehan"
+  }
+}
