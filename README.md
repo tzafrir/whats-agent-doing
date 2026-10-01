@@ -51,6 +51,7 @@ Click the triangle (or focus the band with `ctrl+x tab` and press Enter) to expa
 
 - **Stays in the session.** The plugin keeps its headline and history in the session's own state (`$.state`) and nothing else: no files, no network, no processes, no storage across sessions. `claude plugin validate` lists every call it makes: `$.clock`, `$.state` and `$.ui`.
 - **Never changes what Claude does.** Every hook passes its event on unchanged: tool calls, permission requests and the model's stream run exactly as they would without it.
+- **Never answers a permission prompt.** The plugin hooks `classic.PermissionRequest`, which runs each time a tool call, Claude's or a subagent's, needs your approval. The hook decides nothing: it never allows, denies or changes the request, adds no permission rules, and passes the request on as it came. It only notes which call is waiting, so the box can say `Waiting for your approval: <tool>` until you answer.
 - **Shows what Claude is working on.** The box and its history display your prompts, file paths, URLs, the descriptions of commands (or the command itself when it has none), MCP tool names and, where the model streams it, a line of its thinking. Anyone who can see your screen, or a screen share, can read them. Labels are cleaned of control and invisible characters before they are drawn.
 
 ## Support
@@ -81,6 +82,7 @@ Loading the plugin writes the API's types to `.claude-plugin/types/`, which `tsc
 | `types/index.d.ts` | The `$.state` contract: the headline, the history, the toggle |
 | `tests/register.test.tsx` | Idle, a whole turn state by state, the history toggle, thinking and commands without repeats, hostile labels, an approval wait |
 | `.claude-plugin/marketplace.json` | Makes this repository its own one-plugin marketplace |
+| `.claude-plugin/icon.png` | The listing icon: the box and its status dot above the prompt |
 
 ## License
 
