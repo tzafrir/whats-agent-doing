@@ -9,6 +9,7 @@
   "homepage": "https://github.com/tzafrir/whats-agent-doing",
   "repository": "https://github.com/tzafrir/whats-agent-doing",
   "license": "MIT",
+  "privacyPolicyUrl": "https://tzafrir.github.io/whats-agent-doing/privacy",
   "keywords": [
     "status",
     "activity",

@@ -54,6 +54,8 @@ Click the triangle (or focus the band with `ctrl+x tab` and press Enter) to expa
 - **Only displays permission prompts, never answers them.** The plugin hooks `classic.PermissionRequest`, which runs each time a tool call, Claude's or a subagent's, needs your approval. The hook is display only and decides nothing: it never allows, denies or changes the request, adds no permission rules, and passes the request on as it came. Its one job is to show `Waiting for your approval: <tool>` in the box until you answer.
 - **Shows what Claude is working on.** The box and its history display your prompts, file paths, URLs, the descriptions of commands (or the command itself when it has none), MCP tool names and, where the model streams it, a line of its thinking. Anyone who can see your screen, or a screen share, can read them. Labels are cleaned of control and invisible characters before they are drawn.
 
+Read the full [privacy policy](https://tzafrir.github.io/whats-agent-doing/privacy).
+
 ## Support
 
 Report a problem or ask for a feature in [GitHub Issues](https://github.com/tzafrir/whats-agent-doing/issues).
