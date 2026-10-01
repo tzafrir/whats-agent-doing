@@ -121,8 +121,9 @@ describe('register', () => {
     await step($, 0)
 
     expect(box.seen[0]).toContain('Thinking: I should check the loader first')
-    expect(box.seen[1]).toContain('Preparing: Reading')
-    expect(box.seen[2]).toContain('Preparing: Reading app.ts')
+    expect(box.seen[1]).toContain('Reading your prompt')
+    expect(box.seen[2]).toContain('Reading app.ts')
+    expect(box.seen.join(' ')).not.toContain('Preparing')
 
     await $.tool.call({ tool: 'Read', file_path: 'src/app.ts' })
 
@@ -165,6 +166,41 @@ describe('register', () => {
     expect(history).toContain('Wrote the reply (1 word)')
     expect(history).toContain('Done in')
     expect((await ui.find({ key: 'activity' }))?.text).toContain('▾')
+  })
+
+  test('thinking with no thought text keeps the last action', async ($, on) => {
+    const { box } = seat(on, [
+      [{ kind: 'thinking', index: 0, text: '' }],
+      [{ kind: 'thinking', index: 0, text: '' }],
+    ])
+
+    await mount($, box)
+    await $.turn.start({ text: 'fix the config', turnId: 't1' })
+    await step($, 0)
+    await $.tool.call({ tool: 'Read', file_path: 'src/app.ts' })
+    await step($, 1)
+
+    expect(box.seen[0]).toContain('Reading your prompt')
+    expect(box.seen[2]).toContain('Reading app.ts')
+    expect(box.seen.join(' ')).not.toContain('Thinking')
+  })
+
+  test('a command being written shows its description, never the command', async ($, on) => {
+    const { box } = seat(on, [
+      [
+        { kind: 'tool', index: 0, id: 'tu1', name: 'Bash' },
+        { kind: 'input', index: 0, json: '{"command": "npm test --silent"' },
+        { kind: 'input', index: 0, json: ', "description": "Run the tests"' },
+      ],
+    ])
+
+    await mount($, box)
+    await $.turn.start({ text: 'test it', turnId: 't1' })
+    await step($, 0)
+
+    expect(box.seen[1]).toContain('Reading your prompt')
+    expect(box.seen[2]).toContain('Run the tests')
+    expect(box.seen.join(' ')).not.toContain('npm test')
   })
 
   test('a call waiting on a permission prompt says so', async ($, on) => {

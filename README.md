@@ -13,8 +13,8 @@ What it says, as Claude works:
 | State | Example |
 |-------|---------|
 | Reading the prompt | `Reading your prompt` |
-| Thinking, with the thought's latest sentence | `Thinking: …the hook needs to await next` |
-| Composing a tool call, as its input streams | `Preparing: Writing register.tsx · 2.3 KB` |
+| Thinking, with the thought's latest sentence where the model streams it, else the last action with the dot turned magenta | `Thinking: …the hook needs to await next` |
+| Writing a tool call, once its input says what it does (a file's path, a command's description) | `Writing register.tsx · 2.3 KB` |
 | Running a tool | `Reading app.ts`, `Run the tests`, `Fetching github.com` |
 | A subagent at work | `Running an agent: find the bug › Reading app.ts` |
 | Waiting on you | `Waiting for your approval: Run the tests`, `Waiting for your answer` |

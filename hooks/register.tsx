@@ -21,6 +21,7 @@ const MAX_HISTORY_ROWS = 12
 const MAX_THOUGHT_CHARS = 70
 const MAX_THOUGHT_BUFFER = 2000
 const MAX_INPUT_HEAD = 4000
+const LARGE_INPUT_CHARS = 1024
 const STREAM_THROTTLE_MS = 250
 const TICK_MS = 1000
 
@@ -90,6 +91,7 @@ type Live = {
   thought: string
   reply: string
   composing: { tool: string; head: string; chars: number } | null
+  lastAction: string | null
   lastTurn: string | null
   lastPublishMs: number
   trailing: Timer | null
@@ -120,6 +122,7 @@ export const register: Register = on => {
     thought: '',
     reply: '',
     composing: null,
+    lastAction: null,
     lastTurn: null,
     lastPublishMs: 0,
     trailing: null,
@@ -143,6 +146,7 @@ export const register: Register = on => {
     live.turnActions = 0
     live.isFirstRequest = true
     live.resultsToReview = 0
+    live.lastAction = null
     live.calls.clear()
     live.agents.clear()
 
@@ -189,20 +193,17 @@ export const register: Register = on => {
     if (e.agentId !== undefined) {
       const agentId = e.agentId
 
+      // Kept after the call: the agent's last action stands while it thinks.
       live.agents.set(agentId, label)
       await publish($, live, false)
 
-      try {
-        return await next(e)
-      } finally {
-        live.agents.set(agentId, 'Thinking')
-        await publish($, live, false)
-      }
+      return next(e)
     }
 
     const startMs = await $.clock.now()
 
     live.calls.set(e.tool_use_id, { tool: e.tool, label, startMs, isAwaitingApproval: false })
+    live.lastAction = label
     live.turnActions += 1
     await publish($, live)
 
@@ -437,9 +438,12 @@ function current(live: Live): ActivityNow {
         sinceMs,
       }
     case 'thinking': {
+      // With no thought text to quote, the last action stands, the dot
+      // turned to thinking's color; before any, the prompt is what it reads.
       const snippet = thoughtOf(live.thought, MAX_THOUGHT_CHARS)
+      const label = snippet ? `Thinking: ${snippet}` : standingLabel(live)
 
-      return { phase: 'thinking', label: snippet ? `Thinking: ${snippet}` : 'Thinking', sinceMs }
+      return { phase: 'thinking', label, sinceMs }
     }
     case 'writing':
       return {
@@ -448,16 +452,22 @@ function current(live: Live): ActivityNow {
         sinceMs,
       }
     case 'composing': {
+      // A call is named once its input says what it does: a file tool by
+      // its path, a command by its description, which streams after the
+      // command itself. Until then the last action stands.
       const { composing } = live
-      const what = composing
-        ? activityOf(composing.tool, partialArgsOf(composing.head))
-        : 'a tool call'
+      const args = composing ? partialArgsOf(composing.head) : {}
+      const isDescribed = composing !== null && (isShellTool(composing.tool)
+        ? typeof args['description'] === 'string'
+        : Object.keys(args).length > 0)
 
-      return {
-        phase: 'composing',
-        label: `Preparing: ${what} · ${sizeOf(composing?.chars ?? 0)}`,
-        sinceMs,
+      if (!composing || !isDescribed) {
+        return { phase: 'composing', label: standingLabel(live), sinceMs }
       }
+
+      const size = composing.chars >= LARGE_INPUT_CHARS ? ` · ${sizeOf(composing.chars)}` : ''
+
+      return { phase: 'composing', label: `${activityOf(composing.tool, args)}${size}`, sinceMs }
     }
     case 'idle':
       return live.lastTurn === null
@@ -579,6 +589,18 @@ async function follow($: EngineInterface, live: Live, chunk: TurnStepChunk): Pro
       return
     }
   }
+}
+
+/**
+ * What the box keeps saying while Claude thinks or writes a call it cannot
+ * name yet: the turn's last action, or the prompt before there is one.
+ */
+function standingLabel(live: Live): string {
+  return live.lastAction ?? 'Reading your prompt'
+}
+
+function isShellTool(tool: string): boolean {
+  return tool === 'Bash' || tool === 'PowerShell'
 }
 
 function isAgentTool(tool: string): boolean {
