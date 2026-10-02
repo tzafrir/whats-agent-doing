@@ -1,12 +1,70 @@
+<!-- HERO GIF: replace this line with ![Three agents working, live above the Claude Code prompt](media/hero.gif) -->
+
 # What's Agent Doing
 
-A Claude Code plugin that adds a little box above the prompt that always says what Claude is doing right now, and expands to show what it has done.
+**See what Claude Code is doing, in plain English, live. Even when three agents are working at once.**
+
+A box above the prompt names the current step and how long it has been on it. Each background agent gets a row of its own. Click ▸ to see everything that has already happened.
+
+## The run that planned this launch
+
+To plan this plugin's launch, I had Claude start a three-person marketing panel, a CMO, a marketing manager and a motion designer, as three background agents working in parallel.
+
+The turn ended within seconds and the prompt came back. Without the box, that's all you see: nothing tells you the three are still going, what each one is doing, or whether one has stalled.
+
+With the box, this is what my terminal showed 21 seconds in (agent names as v0.4.1 shows them):
+
+<!-- REAL CAPTURE: ![The box during that run: 3 agents working, a row each](media/three-agents.png) -->
 
 ```
-╭────────────────────────────────────────────────────────────────╮
-│ ▸ ● Claude: Editing register.tsx · 4.2s                        │
-╰────────────────────────────────────────────────────────────────╯
+╭──────────────────────────────────────────────────────────────────────────────────────╮
+│ ▸ ● Claude: 3 agents working · 21s                                                   │
+│ ◆ CMO: today-only launch strategy › Searching the web for "Claude mods launch …  21s │
+│ ◆ Motion designer: visuals buildable today › Read duration format, agent finis…  20s │
+│ ◆ Agentic MM: README rewrite and copy › Read README and helper sources  20s          │
+╰──────────────────────────────────────────────────────────────────────────────────────╯
 ```
+
+Each row gives an agent's task, its current step and how long it has been running. A web search appears as its query. A shell command appears as its own description ("Read README and helper sources"), not as raw bash. The border stays cyan for as long as any agent is still working.
+
+**Click ▸ to see what has happened so far.** The history lists every prompt, thought, tool call and reply, each with how long it took. A background agent is added to it when it finishes:
+
+```
+╭─────────────────────────────────────────────────────────────────────────────╮
+│ ▾ ● Claude: 2 agents working · 6m 48s                                       │
+│ ◆ Motion designer: visuals buildable today › Reading register.tsx  6m 47s   │
+│ ◆ Agentic MM: README rewrite and copy › Writing today-agentic-mm.md  6m 47s │
+│                                                                             │
+│ › Run the marketing panel again. Every action happens today.                │
+│ ∴ Thought (96 words)  4.2s                                                  │
+│ ✓ Running an agent: CMO: today-only launch strategy  0.3s                   │
+│ ✓ Running an agent: Motion designer: visuals buildable today  0.3s          │
+│ ✓ Running an agent: Agentic MM: README rewrite and copy  0.2s               │
+│ ✎ Wrote the reply (31 words)  1.9s                                          │
+│ ✓ Done in 9.4s, 3 actions  9.4s                                             │
+│ ✓ Agent: CMO: today-only launch strategy  6m 12s                            │
+╰─────────────────────────────────────────────────────────────────────────────╯
+```
+
+**When Claude needs you, the box turns yellow**, and the timer shows how long it has been waiting:
+
+```
+╭────────────────────────────────────────────────────────────╮
+│ ▸ ● Claude: Waiting for your approval: Run the tests · 41s │
+╰────────────────────────────────────────────────────────────╯
+```
+
+| You wonder | Without | With the box |
+|---|---|---|
+| Is it stuck? | A spinner | The current step, and how long it has been on it |
+| What are the agents doing? | Out of view once the turn ends | One `◆` row per agent, updated live |
+| Is it waiting for me? | A dialog you see only if you're looking | A yellow box: `Waiting for your approval: Run the tests` |
+| What just ran? | Raw bash in the scrollback | `Read README and helper sources` |
+| What happened while I was away? | Scroll back and piece it together | ▸ history with ✓ done, ✗ failed, ⊘ denied, ■ interrupted, and durations |
+
+When nothing is running, the box shows how the last turn ended, e.g. `○ Claude: Idle · last turn done in 9.4s, 3 actions`.
+
+The plugin is free and MIT-licensed. It only displays: no network, no files, no telemetry. It is one of the first [mods](https://github.com/anthropics/claude-code/blob/main/mods/README.md), built on Claude Code's new function hooks.
 
 ## Install
 
