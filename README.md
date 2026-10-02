@@ -1,68 +1,66 @@
-<!-- HERO GIF: replace this line with ![Three agents working, live above the Claude Code prompt](media/hero.gif) -->
+![What's Agent Doing: each step of a bug fix, live above the Claude Code prompt](media/hero.gif)
 
 # What's Agent Doing
 
-**See what Claude Code is doing, in plain English, live. Even when three agents are working at once.**
+**See what Claude Code is doing at every step, in plain English, live.**
 
-A box above the prompt names the current step and how long it has been on it. Each background agent gets a row of its own. Click ▸ to see everything that has already happened.
+A box above the prompt names the step Claude is on and how long it has been on it. Click ▸ to see every step it has taken.
 
-## The run that planned this launch
+## Why
 
-To plan this plugin's launch, I had Claude start a three-person marketing panel, a CMO, a marketing manager and a motion designer, as three background agents working in parallel.
+You ask Claude Code to fix a bug, and for the next few minutes you see a spinner and long commands scrolling past. You can't easily tell:
 
-The turn ended within seconds and the prompt came back. Without the box, that's all you see: nothing tells you the three are still going, what each one is doing, or whether one has stalled.
+- whether it's stuck or just slow,
+- whether it's waiting for you,
+- what that command is for, and whether it worked.
 
-With the box, this is what my terminal showed 21 seconds in (agent names as v0.4.1 shows them):
+## A bug fix, step by step
 
-<!-- REAL CAPTURE: ![The box during that run: 3 agents working, a row each](media/three-agents.png) -->
+> The cart total is wrong when a coupon is applied. Fix it.
 
-```
-╭──────────────────────────────────────────────────────────────────────────────────────╮
-│ ▸ ● Claude: 3 agents working · 21s                                                   │
-│ ◆ CMO: today-only launch strategy › Searching the web for "Claude mods launch …  21s │
-│ ◆ Motion designer: visuals buildable today › Read duration format, agent finis…  20s │
-│ ◆ Agentic MM: README rewrite and copy › Read README and helper sources  20s          │
-╰──────────────────────────────────────────────────────────────────────────────────────╯
-```
+To track this down, Claude runs commands you'd have to stop and decode. The box says what each one is for, and how long it has been running:
 
-Each row gives an agent's task, its current step and how long it has been running. A web search appears as its query. A shell command appears as its own description ("Read README and helper sources"), not as raw bash. The border stays cyan for as long as any agent is still working.
+| Claude runs | The box says |
+|---|---|
+| `npx tsx -e "import {cartTotal} from './src/cart'; console.log(cartTotal({…coupon:{amount:10},taxRate:0.08}))"` | Reproduce the total with a $10 coupon |
+| `git bisect start HEAD v2.3.0 && git bisect run npx vitest run src/cart -t "fixed coupon"` | Find the commit that broke fixed-amount coupons · 1m 48s |
+| `git bisect reset && npx vitest run src/cart` | Waiting for your approval: Reset the bisect and rerun the cart tests |
 
-**Click ▸ to see what has happened so far.** The history lists every prompt, thought, tool call and reply, each with how long it took. A background agent is added to it when it finishes:
+The bisect runs for almost two minutes. The box shows it is bisecting, not stuck. When Claude needs you, the box turns yellow, so a wait for approval never looks like a hang.
 
-```
-╭─────────────────────────────────────────────────────────────────────────────╮
-│ ▾ ● Claude: 2 agents working · 6m 48s                                       │
-│ ◆ Motion designer: visuals buildable today › Reading register.tsx  6m 47s   │
-│ ◆ Agentic MM: README rewrite and copy › Writing today-agentic-mm.md  6m 47s │
-│                                                                             │
-│ › Run the marketing panel again. Every action happens today.                │
-│ ∴ Thought (96 words)  4.2s                                                  │
-│ ✓ Running an agent: CMO: today-only launch strategy  0.3s                   │
-│ ✓ Running an agent: Motion designer: visuals buildable today  0.3s          │
-│ ✓ Running an agent: Agentic MM: README rewrite and copy  0.2s               │
-│ ✎ Wrote the reply (31 words)  1.9s                                          │
-│ ✓ Done in 9.4s, 3 actions  9.4s                                             │
-│ ✓ Agent: CMO: today-only launch strategy  6m 12s                            │
-╰─────────────────────────────────────────────────────────────────────────────╯
-```
-
-**When Claude needs you, the box turns yellow**, and the timer shows how long it has been waiting:
+**Click ▸ for every step and how it went:**
 
 ```
-╭────────────────────────────────────────────────────────────╮
-│ ▸ ● Claude: Waiting for your approval: Run the tests · 41s │
-╰────────────────────────────────────────────────────────────╯
+╭─────────────────────────────────────────────────────────────╮
+│ ▾ ○ Claude: Idle · last turn done in 2m 40s, 5 actions      │
+│                                                             │
+│ › The cart total is wrong when a coupon is applied. Fix it. │
+│ ✓ Reading cart.ts  0.6s                                     │
+│ ✓ Reproduce the total with a $10 coupon  2.1s               │
+│ ✓ Find the commit that broke fixed-amount coupons  1m 48s   │
+│ ✓ Editing cart.ts  0.6s                                     │
+│ ✓ Reset the bisect and rerun the cart tests  7.4s           │
+│ ✎ Wrote the reply (47 words)  5.8s                          │
+│ ✓ Done in 2m 40s, 5 actions  2m 40s                         │
+╰─────────────────────────────────────────────────────────────╯
 ```
 
 | You wonder | Without | With the box |
 |---|---|---|
-| Is it stuck? | A spinner | The current step, and how long it has been on it |
-| What are the agents doing? | Out of view once the turn ends | One `◆` row per agent, updated live |
-| Is it waiting for me? | A dialog you see only if you're looking | A yellow box: `Waiting for your approval: Run the tests` |
-| What just ran? | Raw bash in the scrollback | `Read README and helper sources` |
+| Is it stuck? | A spinner and a long command line | The step in plain English, and how long it has been on it |
+| Is it waiting for me? | A dialog you see only if you're looking | A yellow box: `Waiting for your approval: …` |
+| What is that command for? | Decode the flags yourself | The command's own description: `Find the commit that broke fixed-amount coupons` |
 | What happened while I was away? | Scroll back and piece it together | ▸ history with ✓ done, ✗ failed, ⊘ denied, ■ interrupted, and durations |
 
-When nothing is running, the box shows how the last turn ended, e.g. `○ Claude: Idle · last turn done in 9.4s, 3 actions`.
+**Background agents get a row each**, and keep it after your turn ends, while they're still working:
+
+```
+╭───────────────────────────────────────────────────────────────────╮
+│ ▸ ● Claude: 2 agents working · 34s                                │
+│ ◆ Find callers of applyCoupon › Searching for "applyCoupon("  34s │
+│ ◆ Check the coupon tests › Reading coupon.test.ts  33s            │
+╰───────────────────────────────────────────────────────────────────╯
+```
 
 The plugin is free and MIT-licensed. It only displays: no network, no files, no telemetry. It is one of the first [mods](https://github.com/anthropics/claude-code/blob/main/mods/README.md), built on Claude Code's new function hooks.
 
@@ -93,10 +91,10 @@ Then start a new session (or run `/reload-plugins`). Update later with `claude p
 | Reading the prompt | `Reading your prompt` |
 | Thinking: the thought's latest sentence where the model streams it, else the last action with the dot turned magenta | `Thinking: …the hook needs to await next` |
 | Writing a tool call, once its input says what it does (a file's path, a command's description) | `Writing register.tsx · 2.3 KB` |
-| Running a tool | `Reading app.ts`, `Run the tests`, `Fetching github.com` |
+| Running a tool | `Reading app.ts`, `Find the commit that broke fixed-amount coupons` (a command's own description), `Fetching github.com` |
 | A subagent at work | `Running an agent: find the bug › Reading app.ts` |
 | Background agents, during a turn or after it | `3 agents working`, with a row per agent: `◆ Draft the plan › Searching the web  1m 12s` |
-| Waiting on you | `Waiting for your approval: Run the tests`, `Waiting for your answer` |
+| Waiting on you | `Waiting for your approval: Reset the bisect and rerun the cart tests`, `Waiting for your answer` |
 | Reading tool results | `Reviewing the results of 3 actions` |
 | Writing the reply | `Writing the reply · 120 words` |
 | Compacting | `Compacting the conversation` |
