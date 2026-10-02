@@ -37,6 +37,7 @@ Then start a new session (or run `/reload-plugins`). Update later with `claude p
 | Writing a tool call, once its input says what it does (a file's path, a command's description) | `Writing register.tsx · 2.3 KB` |
 | Running a tool | `Reading app.ts`, `Run the tests`, `Fetching github.com` |
 | A subagent at work | `Running an agent: find the bug › Reading app.ts` |
+| Background agents, during a turn or after it | `3 agents working`, with a row per agent: `◆ Draft the plan › Searching the web  1m 12s` |
 | Waiting on you | `Waiting for your approval: Run the tests`, `Waiting for your answer` |
 | Reading tool results | `Reviewing the results of 3 actions` |
 | Writing the reply | `Writing the reply · 120 words` |
@@ -78,11 +79,11 @@ Loading the plugin writes the API's types to `.claude-plugin/types/`, which `tsc
 
 | File | What it does |
 |------|--------------|
-| `hooks/register.tsx` | The hooks: the model's stream (`turn.step`), tools (`tool.call`), approvals (`classic.PermissionRequest`), subagents, compaction, turns, and the box's drawing (`ui.render` on `AbovePrompt`) |
+| `hooks/register.tsx` | The hooks: the model's stream (`turn.step`), tools (`tool.call`), approvals (`classic.PermissionRequest`), subagents (`agent.spawn`, their calls and stops), compaction, turns, and the box's drawing (`ui.render` on `AbovePrompt`) |
 | `hooks/activity-of.ts` | Turns a tool call, whole or still streaming, into its short label |
 | `hooks/text.ts` | Printable labels, thought snippets, word counts, sizes, durations |
-| `types/index.d.ts` | The `$.state` contract: the headline, the history, the toggle |
-| `tests/register.test.tsx` | Idle, a whole turn state by state, the history toggle, thinking and commands without repeats, hostile labels, an approval wait |
+| `types/index.d.ts` | The `$.state` contract: the headline, the agents at work, the history, the toggle |
+| `tests/register.test.tsx` | Idle, a whole turn state by state, the history toggle, thinking and commands without repeats, hostile labels, an approval wait, background agents after the turn |
 | `.claude-plugin/marketplace.json` | Makes this repository its own one-plugin marketplace |
 | `.claude-plugin/icon.png` | The listing icon: the box and its status dot above the prompt |
 

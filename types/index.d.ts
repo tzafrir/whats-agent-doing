@@ -22,6 +22,16 @@ export type ActivityNow = {
   sinceMs: number
 }
 
+/**
+ * A subagent at work: what it was asked to do, its latest action, and when
+ * it started.
+ */
+export type ActivityAgent = {
+  name: string
+  label: string
+  sinceMs: number
+}
+
 export type ActivityOutcome = 'ok' | 'error' | 'denied' | 'interrupted'
 
 /**
@@ -40,6 +50,7 @@ declare module 'claude-code' {
     'whats-agent-doing': {
       now: ActivityNow
       history: readonly ActivityEntry[]
+      agents: readonly ActivityAgent[]
       isExpanded: boolean
     }
   }

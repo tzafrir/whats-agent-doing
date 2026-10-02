@@ -1,7 +1,8 @@
 import { atom, read, update } from 'claude-code'
-import type { EngineInterface, Register, Timer, TurnStepChunk } from 'claude-code'
+import type { AgentInfo, EngineInterface, Register, Timer, TurnCompleteReason, TurnStepChunk } from 'claude-code'
 
 import type {
+  ActivityAgent,
   ActivityEntry,
   ActivityNow,
   ActivityOutcome,
@@ -23,6 +24,8 @@ const MAX_THOUGHT_BUFFER = 2000
 const MAX_INPUT_HEAD = 4000
 const LARGE_INPUT_CHARS = 1024
 const MAX_LABEL_CHARS = 120
+const MAX_AGENT_NAME_CHARS = 40
+const MAX_AGENT_ROWS = 6
 const STREAM_THROTTLE_MS = 250
 const TICK_MS = 1000
 
@@ -31,6 +34,11 @@ const now = atom({ plugin: 'whats-agent-doing', key: 'now' } as const, IDLE)
 const history = atom(
   { plugin: 'whats-agent-doing', key: 'history' } as const,
   [] as readonly ActivityEntry[],
+)
+
+const team = atom(
+  { plugin: 'whats-agent-doing', key: 'agents' } as const,
+  [] as readonly ActivityAgent[],
 )
 
 const isExpanded = atom(
@@ -77,12 +85,28 @@ type Call = {
 }
 
 /**
+ * A subagent at work, from its spawn (or its first call, when the spawn came
+ * before a reload) to its stop. `toolUseId` names the Agent call that started
+ * it; `activeMs` is when it last did something.
+ */
+type Agent = {
+  name: string
+  label: string
+  startMs: number
+  activeMs: number
+  toolUseId: string | null
+  isBackground: boolean
+}
+
+/**
  * The module's live view of the session, from which the headline is drawn:
  * started over on a reload, while the headline and history in `$.state` stay.
  */
 type Live = {
   calls: Map<string, Call>
-  agents: Map<string, string>
+  agents: Map<string, Agent>
+  agentNames: Map<string, string>
+  described: Map<string, string>
   phase: ModelPhase
   phaseStartMs: number
   turnStartMs: number | null
@@ -99,6 +123,7 @@ type Live = {
   lastTurn: string | null
   lastPublishMs: number
   trailing: Timer | null
+  isSweeping: boolean
   ticker: Timer | null
 }
 
@@ -117,6 +142,8 @@ export const register: Register = on => {
   const live: Live = {
     calls: new Map(),
     agents: new Map(),
+    agentNames: new Map(),
+    described: new Map(),
     phase: 'idle',
     phaseStartMs: 0,
     turnStartMs: null,
@@ -133,6 +160,7 @@ export const register: Register = on => {
     lastTurn: null,
     lastPublishMs: 0,
     trailing: null,
+    isSweeping: false,
     ticker: null,
   }
 
@@ -155,7 +183,6 @@ export const register: Register = on => {
     live.resultsToReview = 0
     live.lastAction = null
     live.calls.clear()
-    live.agents.clear()
 
     const prompt = oneLine(e.text)
 
@@ -165,9 +192,7 @@ export const register: Register = on => {
 
     await enter($, live, 'requesting')
 
-    live.ticker?.cancel()
-    live.ticker = $.clock.every(TICK_MS, () => $.ui.invalidate('ui.render'))
-
+    keepTicking($, live)
     await publish($, live)
 
     return next(e)
@@ -198,13 +223,19 @@ export const register: Register = on => {
     const label = activityOf(e.tool, e as unknown as Record<string, unknown>)
 
     if (e.agentId !== undefined) {
-      const agentId = e.agentId
+      const agent = await agentOf($, live, e.agentId)
 
       // Kept after the call: the agent's last action stands while it thinks.
-      live.agents.set(agentId, label)
+      agent.label = label
+      agent.activeMs = await $.clock.now()
       await publish($, live, false)
 
-      return next(e)
+      try {
+        return await next(e)
+      } finally {
+        agent.label = label
+        await publish($, live, false)
+      }
     }
 
     const startMs = await $.clock.now()
@@ -220,6 +251,21 @@ export const register: Register = on => {
       const result = await next(e)
 
       outcome = result.deny !== undefined ? 'denied' : result.isError ? 'error' : 'ok'
+
+      if (isAgentTool(e.tool)) {
+        const args = e as unknown as Record<string, unknown>
+        const handle = args['name']
+        const description = args['description']
+
+        // A named agent runs as a teammate, which the engine lists by the
+        // call's `name`; the call's `description` is what to show for it.
+        if (typeof handle === 'string' && typeof description === 'string' && oneLine(description) !== '') {
+          live.described.set(handle, description)
+          void sweep($, live)
+        }
+
+        await launched($, live, result.result, description)
+      }
 
       return result
     } finally {
@@ -239,7 +285,9 @@ export const register: Register = on => {
 
   on('classic.PermissionRequest', async ($, e, next) => {
     if (e.agent_id !== undefined) {
-      live.agents.set(e.agent_id, `Waiting for your approval: ${e.tool_name}`)
+      const agent = await agentOf($, live, e.agent_id)
+
+      agent.label = `Waiting for your approval: ${agent.label}`
     } else {
       const waiting = [...live.calls.values()]
         .reverse()
@@ -268,9 +316,31 @@ export const register: Register = on => {
     return next(e)
   })
 
+  on('agent.spawn', async ($, e, next) => {
+    const result = await next(e)
+
+    if (result.agentId !== undefined) {
+      const startMs = await $.clock.now()
+      const name = e.description || e.name || 'Agent'
+
+      live.agentNames.set(result.agentId, name)
+      live.agents.set(result.agentId, {
+        name,
+        label: 'Getting started',
+        startMs,
+        activeMs: startMs,
+        toolUseId: e.tool_use_id,
+        isBackground: e.background,
+      })
+      keepTicking($, live)
+      await publish($, live)
+    }
+
+    return result
+  })
+
   on('classic.SubagentStop', async ($, e, next) => {
-    live.agents.delete(e.agent_id)
-    await publish($, live, false)
+    await finish($, live, e.agent_id, 'ok')
 
     return next(e)
   })
@@ -293,7 +363,13 @@ export const register: Register = on => {
   })
 
   on('turn.complete', async ($, e, next) => {
-    if (e.agentId !== undefined || live.turnStartMs === null) {
+    if (e.agentId !== undefined) {
+      await finish($, live, e.agentId, outcomeOf(e.reason))
+
+      return next(e)
+    }
+
+    if (live.turnStartMs === null) {
       return next(e)
     }
 
@@ -315,11 +391,8 @@ export const register: Register = on => {
     live.lastTurn = label
     live.turnStartMs = null
     live.calls.clear()
-    live.agents.clear()
 
-    live.ticker?.cancel()
-    live.ticker = null
-
+    keepTicking($, live)
     await publish($, live)
 
     return next(e)
@@ -334,6 +407,7 @@ export const register: Register = on => {
 
     const headline = await read($, now)
     const entries = await read($, history)
+    const working = await read($, team)
     const isOpen = await read($, isExpanded)
     const nowMs = await $.clock.now()
 
@@ -341,7 +415,34 @@ export const register: Register = on => {
     const color = PHASE_COLORS[headline.phase]
     const elapsed = isWorking ? ` · ${durationOf(nowMs - headline.sinceMs)}` : ''
 
-    const rows = Math.min(MAX_HISTORY_ROWS, Math.max(1, e.props.maxRows - 4))
+    // One agent the headline names; more, or one beside the main loop's
+    // work, get a row each.
+    const isTeamListed = working.length > 1 || (working.length === 1 && headline.phase !== 'agent')
+    const listed = isTeamListed ? working.slice(-MAX_AGENT_ROWS) : []
+    const unlisted = isTeamListed ? working.length - listed.length : 0
+
+    const agentRows = listed.map((agent, i) => (
+      <Box key={`agent-${i}`} flexDirection="row">
+        <Text color={PHASE_COLORS.agent}>{'◆ '}</Text>
+        <Text bold wrap="truncate-end">{printable(agent.name, MAX_AGENT_NAME_CHARS)}</Text>
+        <Text wrap="truncate-end">{` › ${printable(agent.label, MAX_LABEL_CHARS)}`}</Text>
+        <Text dimColor>{`  ${durationOf(nowMs - agent.sinceMs)}`}</Text>
+      </Box>
+    ))
+
+    const moreAgents = unlisted > 0 ? [<Text dimColor>{`… ${plural(unlisted, 'more agent')}`}</Text>] : []
+
+    const teamBox = isTeamListed
+      ? [
+          <Box key="agents" flexDirection="column">
+            {agentRows}
+            {moreAgents}
+          </Box>,
+        ]
+      : []
+
+    const teamRows = listed.length + moreAgents.length
+    const rows = Math.min(MAX_HISTORY_ROWS, Math.max(1, e.props.maxRows - 4 - teamRows))
     const shown = entries.slice(-rows)
     const hidden = entries.length - shown.length
 
@@ -394,6 +495,7 @@ export const register: Register = on => {
           <Text wrap="truncate-end">{printable(headline.label, MAX_LABEL_CHARS)}</Text>
           <Text dimColor>{elapsed}</Text>
         </Box>
+        {teamBox}
         {body}
       </Box>
     )
@@ -406,10 +508,10 @@ function current(live: Live): ActivityNow {
     return { phase: 'compacting', label: 'Compacting the conversation', sinceMs: live.phaseStartMs }
   }
 
-  const open = [...live.calls.values()]
-  const newest = open.at(-1)
+  const open = [...live.calls.entries()]
+  const [newestId, newest] = open.at(-1) ?? []
 
-  if (newest) {
+  if (newestId !== undefined && newest !== undefined) {
     const more = open.length > 1 ? ` (+${open.length - 1} more)` : ''
 
     if (newest.isAwaitingApproval) {
@@ -424,11 +526,26 @@ function current(live: Live): ActivityNow {
       return { phase: 'question', label: newest.label, sinceMs: newest.startMs }
     }
 
-    const inner = isAgentTool(newest.tool) ? [...live.agents.values()].at(-1) : undefined
+    const inner = isAgentTool(newest.tool) ? agentUnder(live, newestId)?.label : undefined
 
     return inner === undefined
       ? { phase: 'tool', label: `${newest.label}${more}`, sinceMs: newest.startMs }
       : { phase: 'agent', label: `${newest.label} › ${inner}${more}`, sinceMs: newest.startMs }
+  }
+
+  if (live.phase === 'idle' && live.agents.size > 0) {
+    // Between turns, background agents may still be at work.
+    const working = [...live.agents.values()]
+    const sinceMs = Math.min(...working.map(agent => agent.startMs))
+    const busiest = working.reduce((a, b) => (b.activeMs > a.activeMs ? b : a))
+
+    return {
+      phase: 'agent',
+      label: working.length === 1
+        ? `${busiest.name} › ${busiest.label}`
+        : `${plural(working.length, 'agent')} working`,
+      sinceMs,
+    }
   }
 
   const sinceMs = live.phaseStartMs
@@ -501,8 +618,141 @@ async function publish($: EngineInterface, live: Live, isUrgent = true): Promise
 
   live.lastPublishMs = nowMs
   const headline = current(live)
+  const working = [...live.agents.values()].map(agent => ({
+    name: agent.name,
+    label: agent.label,
+    sinceMs: agent.startMs,
+  }))
 
   await update($, now, () => headline)
+  await update($, team, () => working)
+}
+
+/** The agent at work under `agentId`, taken up if its spawn came before a reload. */
+async function agentOf($: EngineInterface, live: Live, agentId: string): Promise<Agent> {
+  const known = live.agents.get(agentId)
+
+  if (known) {
+    return known
+  }
+
+  const startMs = await $.clock.now()
+  const agent: Agent = {
+    name: live.agentNames.get(agentId) ?? 'Agent',
+    label: 'Getting started',
+    startMs,
+    activeMs: startMs,
+    toolUseId: null,
+    isBackground: true,
+  }
+
+  live.agents.set(agentId, agent)
+  keepTicking($, live)
+
+  return agent
+}
+
+/**
+ * Lets an agent go. A background agent's run is recorded in the history; a
+ * foreground one's is its Agent call's row.
+ */
+async function finish(
+  $: EngineInterface,
+  live: Live,
+  agentId: string,
+  outcome: ActivityOutcome,
+): Promise<void> {
+  const agent = live.agents.get(agentId)
+
+  if (!agent) {
+    return
+  }
+
+  live.agents.delete(agentId)
+
+  if (agent.isBackground) {
+    await remember($, {
+      kind: 'tool',
+      label: `Agent: ${agent.name}`,
+      durationMs: (await $.clock.now()) - agent.startMs,
+      outcome,
+    })
+  }
+
+  keepTicking($, live)
+  await publish($, live)
+}
+
+/**
+ * Names agents first met by their calls, and lets go of agents the engine
+ * lists as no longer running, in case their stop never reached the box.
+ */
+async function sweep($: EngineInterface, live: Live): Promise<void> {
+  if (live.agents.size === 0 || live.isSweeping) {
+    return
+  }
+
+  live.isSweeping = true
+
+  try {
+    await sweepListed($, live, await $.agent.list())
+  } catch {
+    // The list is a backstop; the box keeps going without it.
+  } finally {
+    live.isSweeping = false
+  }
+}
+
+async function sweepListed($: EngineInterface, live: Live, listed: readonly AgentInfo[]): Promise<void> {
+  const statuses = new Map(listed.map(info => [info.id, info.status]))
+  let isRenamed = false
+
+  for (const [agentId, agent] of [...live.agents.entries()]) {
+    const status = statuses.get(agentId)
+
+    // An agent first met by its calls is named once the engine lists it.
+    if (!live.agentNames.has(agentId)) {
+      const handle = listed.find(info => info.id === agentId)?.name
+      const described = handle === undefined ? undefined : live.described.get(handle)
+
+      if (described !== undefined) {
+        live.agentNames.set(agentId, described)
+      }
+
+      const name = described ?? handle
+
+      if (name !== undefined && name !== agent.name) {
+        agent.name = name
+        isRenamed = true
+      }
+    }
+
+    if (status !== undefined && status !== 'running') {
+      await finish($, live, agentId, status === 'completed' ? 'ok' : status === 'failed' ? 'error' : 'interrupted')
+    }
+  }
+
+  if (isRenamed) {
+    await publish($, live)
+  }
+}
+
+/**
+ * Keeps the elapsed time ticking while a turn runs or an agent works, and
+ * stops it once neither does.
+ */
+function keepTicking($: EngineInterface, live: Live): void {
+  const isBusy = live.turnStartMs !== null || live.agents.size > 0
+
+  if (isBusy && live.ticker === null) {
+    live.ticker = $.clock.every(TICK_MS, () => {
+      $.ui.invalidate('ui.render')
+      void sweep($, live)
+    })
+  } else if (!isBusy && live.ticker !== null) {
+    live.ticker.cancel()
+    live.ticker = null
+  }
 }
 
 async function remember($: EngineInterface, entry: ActivityEntry): Promise<void> {
@@ -614,6 +864,55 @@ async function follow($: EngineInterface, live: Live, chunk: TurnStepChunk): Pro
  */
 function standingLabel(live: Live): string {
   return live.lastAction ?? 'Reading your prompt'
+}
+
+/**
+ * Names a background agent by the Agent call that launched it: the call's
+ * short `description`, keyed by the id its result carries (the result's own
+ * `description` can hold the whole prompt). Its own calls may already have
+ * shown it.
+ */
+async function launched(
+  $: EngineInterface,
+  live: Live,
+  result: unknown,
+  asked: unknown,
+): Promise<void> {
+  if (typeof result !== 'object' || result === null) {
+    return
+  }
+
+  const { agentId, description, status } = result as Record<string, unknown>
+
+  if (typeof agentId !== 'string' || status !== 'async_launched') {
+    return
+  }
+
+  const name = [asked, description].find(
+    (text): text is string => typeof text === 'string' && oneLine(text) !== '',
+  )
+
+  if (name === undefined) {
+    return
+  }
+
+  const agent = await agentOf($, live, agentId)
+
+  live.agentNames.set(agentId, name)
+  agent.name = name
+  await publish($, live)
+}
+
+/** The agent an Agent call started, or the one that last did something. */
+function agentUnder(live: Live, toolUseId: string): Agent | undefined {
+  const working = [...live.agents.values()]
+
+  return working.find(agent => agent.toolUseId === toolUseId)
+    ?? working.reduce<Agent | undefined>((a, b) => (a === undefined || b.activeMs > a.activeMs ? b : a), undefined)
+}
+
+function outcomeOf(reason: TurnCompleteReason): ActivityOutcome {
+  return reason === 'aborted' ? 'interrupted' : reason === 'error' ? 'error' : reason === 'refusal' ? 'denied' : 'ok'
 }
 
 function isShellTool(tool: string): boolean {

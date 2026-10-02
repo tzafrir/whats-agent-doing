@@ -25,6 +25,15 @@ const DONE = {
   explanation: null,
 } as const
 
+const SPAWN = {
+  prompt: 'Do the work.',
+  subagentType: 'general-purpose',
+  provider: { plugin: 'engine', tier: 'core' },
+  parentModel: 'claude-opus-5-5',
+  background: true,
+  fork: false,
+} as const
+
 const STEP = { turnId: 't1', model: 'claude-opus-5-5', messageCount: 1 } as const
 
 /**
@@ -237,5 +246,95 @@ describe('register', () => {
     await $.tool.call({ tool: 'Bash', command: 'npm test', description: 'Run the tests' })
 
     expect(box.seen[0]).toContain('Waiting for your approval: Run the tests')
+  })
+
+  test('agents still at work after the turn keep the box busy', async ($, on) => {
+    const { box, clock } = seat(on, [])
+
+    on('agent.spawn', ($, e) => ({ model: 'claude-opus-5-5', agentId: e.tool_use_id === 'tu1' ? 'a1' : 'a2' }))
+
+    const ui = await mount($, box)
+    const { turnId } = await $.turn.start({ text: 'launch the panel', turnId: 't1' })
+
+    await $.agent.spawn({ ...SPAWN, tool_use_id: 'tu1', description: 'Draft the plan' })
+    await $.agent.spawn({ ...SPAWN, tool_use_id: 'tu2', description: 'Storyboard the video' })
+    await $.turn.complete({ ...DONE, turnId })
+    // A call made inside a subagent's loop, which carries its id.
+    await $.tool.call({ tool: 'Read', file_path: 'README.md', agentId: 'a1' } as Parameters<Engine['tool']['call']>[0])
+    await clock.advance(300)
+
+    const team = (await ui.find({ key: 'agents' }))?.text ?? ''
+
+    expect(await box.read()).toContain('2 agents working')
+    expect(team).toContain('Draft the plan › Reading README.md')
+    expect(team).toContain('Storyboard the video › Getting started')
+
+    await $.turn.complete({ ...DONE, turnId: 't2', agentId: 'a2' })
+
+    expect(await box.read()).toContain('Draft the plan › Reading README.md')
+    expect(await ui.find({ key: 'agents' })).toBeUndefined()
+
+    await $.turn.complete({ ...DONE, turnId: 't3', agentId: 'a1', reason: 'error' })
+    await ui.press({ key: 'toggle' })
+
+    const history = (await ui.find({ key: 'history' }))?.text ?? ''
+
+    expect(await box.read()).toContain('Idle')
+    expect(history).toContain('✓ Agent: Storyboard the video')
+    expect(history).toContain('✗ Agent: Draft the plan')
+  })
+
+  test('a named agent is shown by its Agent call description, never its prompt', async ($, on) => {
+    const { box, clock } = seat(on, [])
+
+    on('agent.list', () => ({
+      value: [{
+        id: 'areviewer-1f2e',
+        description: 'You are reviewing the diff. Read every file and',
+        name: 'reviewer',
+        type: 'general-purpose',
+        status: 'running',
+      }],
+    }))
+
+    const ui = await mount($, box)
+
+    await $.tool.call({ tool: 'Read', file_path: 'src/app.ts', agentId: 'areviewer-1f2e' } as Parameters<Engine['tool']['call']>[0])
+    await clock.advance(1000)
+
+    // Before its Agent call is seen, the engine's handle for it stands.
+    expect(await box.read()).toContain('reviewer › Reading app.ts')
+
+    box.toolAnswer = { result: { status: 'teammate_spawned' } } as never
+    await $.tool.call({
+      tool: 'Agent',
+      name: 'reviewer',
+      description: 'Review the diff',
+      prompt: 'You are reviewing the diff. Read every file and…',
+    } as Parameters<Engine['tool']['call']>[0])
+    await clock.advance(1000)
+
+    expect(await box.read()).toContain('Review the diff › Reading app.ts')
+    expect(await box.read()).not.toContain('You are reviewing')
+    expect(await ui.find({ key: 'agents' })).toBeUndefined()
+  })
+
+  test('a background agent is named from the Agent call that launched it', async ($, on) => {
+    const { box, clock } = seat(on, [])
+
+    await mount($, box)
+
+    box.toolAnswer = {
+      result: { status: 'async_launched', agentId: 'b1', description: 'This is a long prompt. Read it all.' },
+    } as never
+
+    await $.tool.call({ tool: 'Agent', description: 'Tour the source', prompt: 'Read it.' } as Parameters<Engine['tool']['call']>[0])
+
+    expect(await box.read()).toContain('Tour the source › Getting started')
+
+    await $.tool.call({ tool: 'Read', file_path: 'src/app.ts', agentId: 'b1' } as Parameters<Engine['tool']['call']>[0])
+    await clock.advance(300)
+
+    expect(await box.read()).toContain('Tour the source › Reading app.ts')
   })
 })
