@@ -8,11 +8,11 @@ A box above the prompt names the step Claude is on and how long it has been on i
 
 ## Why
 
-You ask Claude Code to fix a bug, and for the next few minutes you see a spinner and long commands scrolling past. You can't easily tell:
+With today's models, Claude goes into deep work: bisects, one-off scripts, long chains of flags. For minutes at a time you see a spinner and commands scrolling past, and you can't easily tell:
 
-- whether it's stuck or just slow,
-- whether it's waiting for you,
-- what that command is for, and whether it worked.
+- what it is trying to do right now,
+- what that command is for,
+- whether it's stuck or just slow.
 
 ## A bug fix, step by step
 
@@ -24,9 +24,9 @@ To track this down, Claude runs commands you'd have to stop and decode. The box 
 |---|---|
 | `npx tsx -e "import {cartTotal} from './src/cart'; console.log(cartTotal({…coupon:{amount:10},taxRate:0.08}))"` | Reproduce the total with a $10 coupon |
 | `git bisect start HEAD v2.3.0 && git bisect run npx vitest run src/cart -t "fixed coupon"` | Find the commit that broke fixed-amount coupons · 1m 48s |
-| `git bisect reset && npx vitest run src/cart` | Waiting for your approval: Reset the bisect and rerun the cart tests |
+| `git bisect reset && npx vitest run src/cart` | Reset the bisect and rerun the cart tests |
 
-The bisect runs for almost two minutes. The box shows it is bisecting, not stuck. When Claude needs you, the box turns yellow, so a wait for approval never looks like a hang.
+The bisect runs for almost two minutes. The box shows it is bisecting, not stuck.
 
 **Click ▸ for every step and how it went:**
 
@@ -48,7 +48,6 @@ The bisect runs for almost two minutes. The box shows it is bisecting, not stuck
 | You wonder | Without | With the box |
 |---|---|---|
 | Is it stuck? | A spinner and a long command line | The step in plain English, and how long it has been on it |
-| Is it waiting for me? | A dialog you see only if you're looking | A yellow box: `Waiting for your approval: …` |
 | What is that command for? | Decode the flags yourself | The command's own description: `Find the commit that broke fixed-amount coupons` |
 | What happened while I was away? | Scroll back and piece it together | ▸ history with ✓ done, ✗ failed, ⊘ denied, ■ interrupted, and durations |
 
@@ -82,7 +81,7 @@ claude plugin install whats-agent-doing@tzafrir
 
 Then start a new session (or run `/reload-plugins`). Update later with `claude plugin marketplace update tzafrir`.
 
-**Requirements:** Claude Code in a terminal. The plugin is a [mod](https://github.com/anthropics/claude-code/blob/main/mods/README.md), written with Claude Code's function hooks, which are early access: they load only where function hooks are enabled, and their API may change between releases. The box is drawn in the band above the prompt, which only the terminal has; hooks are not loaded in Claude chat or Cowork.
+**Requirements:** Claude Code in a terminal, or in the desktop app's Code tab. The plugin is a [mod](https://github.com/anthropics/claude-code/blob/main/mods/README.md), written with Claude Code's function hooks, which are early access: they load only where function hooks are enabled, and their API may change between releases. The box is drawn in the band above the prompt; hooks are not loaded in Claude chat or Cowork.
 
 ## What it shows
 
