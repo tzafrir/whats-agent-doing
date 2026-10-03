@@ -1,0 +1,203 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>What's Agent Doing</title>
+<meta name="description" content="A Claude Code mod: a box above the prompt says what each step Claude runs is for, in plain English, with a timer.">
+<meta property="og:type" content="website">
+<meta property="og:title" content="What's Agent Doing">
+<meta property="og:description" content="See what Claude Code is doing at every step, in plain English, live.">
+<meta property="og:url" content="https://tzafrir.github.io/whats-agent-doing/">
+<meta property="og:image" content="https://tzafrir.github.io/whats-agent-doing/assets/og.png">
+<meta property="og:image:width" content="1280">
+<meta property="og:image:height" content="640">
+<meta name="twitter:card" content="summary_large_image">
+<meta name="twitter:title" content="What's Agent Doing">
+<meta name="twitter:description" content="See what Claude Code is doing at every step, in plain English, live.">
+<meta name="twitter:image" content="https://tzafrir.github.io/whats-agent-doing/assets/og.png">
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect x='2' y='6' width='28' height='20' rx='5' fill='none' stroke='%2356b6c2' stroke-width='3'/%3E%3Ccircle cx='10' cy='16' r='3.5' fill='%2356b6c2'/%3E%3C/svg%3E">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;700&family=IBM+Plex+Sans:wght@400;600&display=swap">
+<style>
+  /* Layout: one centred column. The page is the terminal's world: dark, mono for anything the box draws, sans for prose. */
+  :root {
+    --bg: #1b1e23; --surface: #22262c; --term: #282c34; --fg: #e3e6ea; --muted: #9aa3ad; --line: #353a42;
+    --cyan: #56b6c2; --green: #98c379; --red: #e06c75; --magenta: #c678dd; --dim: #7f8893;
+    --sans: "IBM Plex Sans", system-ui, -apple-system, "Segoe UI", sans-serif;
+    --mono: "JetBrains Mono", ui-monospace, Consolas, "Courier New", monospace;
+    color-scheme: dark;
+  }
+  * { box-sizing: border-box; }
+  html, body { margin: 0; }
+  body { background: var(--bg); color: var(--fg); font: 16px/1.6 var(--sans); }
+  main { max-width: 920px; margin: 0 auto; padding-inline: 16px; padding-block: 56px 40px; display: grid; gap: 64px; }
+  a { color: var(--cyan); }
+  a:focus-visible, button:focus-visible { outline: 2px solid var(--cyan); outline-offset: 2px; }
+  h1, h2 { margin: 0; text-wrap: balance; line-height: 1.15; }
+  h1 { font: 700 clamp(34px, 6vw, 52px)/1.05 var(--mono); letter-spacing: -.02em; }
+  h2 { font: 700 22px/1.2 var(--mono); }
+  p { margin: 0; max-width: 65ch; }
+  .muted { color: var(--muted); }
+  section { display: grid; gap: 18px; min-width: 0; }
+  code { font-family: var(--mono); font-size: .9em; }
+
+  .hero { display: grid; gap: 22px; }
+  .tagline { font-size: clamp(18px, 2.6vw, 22px); color: var(--fg); max-width: 34ch; }
+  .tagline b { color: var(--cyan); font-weight: 600; }
+  .shot { border-radius: 10px; overflow: hidden; border: 1px solid var(--line); background: var(--term); }
+  .shot img { display: block; width: 100%; height: auto; max-width: 100%; }
+
+  .install { display: grid; gap: 8px; }
+  .cmd { display: flex; align-items: center; gap: 12px; background: var(--term); border: 1px solid var(--line); border-radius: 8px; padding: 10px 12px; min-width: 0; }
+  .cmd code { flex: 1; min-width: 0; overflow-x: auto; white-space: nowrap; color: var(--fg); }
+  .cmd code::before { content: "> "; color: var(--dim); }
+  button.copy { font: 600 13px var(--sans); color: var(--bg); background: var(--cyan); border: 0; border-radius: 6px; padding: 6px 10px; cursor: pointer; flex: none; }
+  button.copy[data-done] { background: var(--green); }
+  .links { display: flex; flex-wrap: wrap; gap: 8px 20px; font-size: 15px; }
+
+  .why ul { margin: 0; padding-left: 20px; display: grid; gap: 4px; max-width: 65ch; }
+
+  .table-wrap { overflow-x: auto; border: 1px solid var(--line); border-radius: 8px; background: var(--surface); }
+  table { border-collapse: collapse; width: 100%; font-size: 14px; }
+  th, td { text-align: left; vertical-align: top; padding: 10px 14px; border-bottom: 1px solid var(--line); }
+  th { font: 600 12px var(--sans); letter-spacing: .06em; text-transform: uppercase; color: var(--muted); }
+  tr:last-child td { border-bottom: 0; }
+  td.run code { color: var(--muted); word-break: break-word; }
+  td.says { font-family: var(--mono); font-size: 13.5px; color: var(--fg); }
+  td.says .t { color: var(--dim); }
+
+  .box { font: 13.5px/1.55 var(--mono); background: var(--term); border: 1px solid var(--line); border-radius: 8px; padding: 14px 16px; overflow-x: auto; }
+  .frame { border: 1.5px solid var(--dim); border-radius: 10px; padding: 6px 12px; width: max-content; min-width: min(100%, 560px); }
+  .frame.busy { border-color: var(--cyan); }
+  .row { white-space: pre; }
+  .g { color: var(--green); } .c { color: var(--cyan); } .m { color: var(--magenta); } .d { color: var(--dim); } .b { font-weight: 700; } .r { color: var(--red); }
+
+  .facts { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 250px), 1fr)); gap: 14px; }
+  .fact { background: var(--surface); border: 1px solid var(--line); border-radius: 8px; padding: 14px 16px; display: grid; gap: 4px; min-width: 0; }
+  .fact b { font-family: var(--mono); font-size: 14px; color: var(--cyan); }
+  .fact p { font-size: 15px; color: var(--muted); }
+
+  footer { border-top: 1px solid var(--line); padding-top: 18px; display: flex; flex-wrap: wrap; gap: 8px 20px; color: var(--muted); font-size: 14px; }
+  @media (prefers-reduced-motion: reduce) { * { transition: none !important; } }
+</style>
+</head>
+<body>
+<main>
+  <header class="hero">
+    <h1>What's Agent Doing</h1>
+    <p class="tagline">See what Claude Code is doing at every step, <b>in plain English, live.</b></p>
+    <div class="shot"><img src="assets/hero.gif" width="960" height="540" alt="The box above the Claude Code prompt naming each step of a bug fix in plain English: a one-off script reproduces the bug, a git bisect finds the commit that broke it with its timer climbing, an edit, then the tests; then the history of every step."></div>
+    <div class="install" aria-label="Install">
+      <p class="muted">Install, in Claude Code:</p>
+      <div class="cmd"><code id="cmd-1">/plugin marketplace add tzafrir/whats-agent-doing</code><button class="copy" type="button" data-for="cmd-1">Copy</button></div>
+      <div class="cmd"><code id="cmd-2">/plugin install whats-agent-doing@tzafrir</code><button class="copy" type="button" data-for="cmd-2">Copy</button></div>
+      <p class="muted">Then start a new session, or run <code>/reload-plugins</code>. Free and MIT-licensed.</p>
+    </div>
+    <div class="links">
+      <a href="https://github.com/tzafrir/whats-agent-doing">Source and documentation on GitHub</a>
+      <a href="privacy">Privacy policy</a>
+    </div>
+  </header>
+
+  <section class="why" aria-labelledby="why">
+    <h2 id="why">Why</h2>
+    <p>With today's models, Claude goes into deep work: bisects, one-off scripts, long chains of flags. For minutes at a time you see a spinner and commands scrolling past, and you can't easily tell:</p>
+    <ul>
+      <li>what it is trying to do right now,</li>
+      <li>what that command is for,</li>
+      <li>whether it's stuck or just slow.</li>
+    </ul>
+    <p>A box above the prompt names the step Claude is on, in the words Claude wrote for it, and how long it has been on it.</p>
+  </section>
+
+  <section aria-labelledby="example">
+    <h2 id="example">A bug fix, step by step</h2>
+    <p class="muted">&ldquo;The cart total is wrong when a coupon is applied. Fix it.&rdquo; To track it down, Claude runs commands you'd have to stop and decode. The box says what each one is for:</p>
+    <div class="table-wrap">
+      <table>
+        <thead><tr><th>Claude runs</th><th>The box says</th></tr></thead>
+        <tbody>
+          <tr><td class="run"><code>npx tsx -e "import {cartTotal} from './src/cart'; console.log(cartTotal({…coupon:{amount:10},taxRate:0.08}))"</code></td><td class="says">Reproduce the total with a $10 coupon</td></tr>
+          <tr><td class="run"><code>git bisect start HEAD v2.3.0 &amp;&amp; git bisect run npx vitest run src/cart -t "fixed coupon"</code></td><td class="says">Find the commit that broke fixed-amount coupons <span class="t">· 1m 48s</span></td></tr>
+          <tr><td class="run"><code>git bisect reset &amp;&amp; npx vitest run src/cart</code></td><td class="says">Reset the bisect and rerun the cart tests</td></tr>
+        </tbody>
+      </table>
+    </div>
+    <p class="muted">The bisect runs for almost two minutes. The box shows it is bisecting, not stuck.</p>
+  </section>
+
+  <section aria-labelledby="history">
+    <h2 id="history">Every step, and how it went</h2>
+    <p class="muted">Click ▸ for the history: each prompt, command, edit and reply, with ✓ done, ✗ failed, ⊘ denied or ■ interrupted, and how long it took.</p>
+    <div class="box" role="img" aria-label="The expanded history after the bug fix: five steps with their times">
+      <div class="frame">
+        <div class="row">▾ <span class="d">○</span> <span class="b">Claude:</span> Idle · last turn done in 2m 40s, 5 actions</div>
+        <div class="row"> </div>
+        <div class="row"><span class="d">›</span> <span class="b">The cart total is wrong when a coupon is applied. Fix it.</span></div>
+        <div class="row"><span class="g">✓</span> Reading cart.ts  <span class="d">0.6s</span></div>
+        <div class="row"><span class="g">✓</span> Reproduce the total with a $10 coupon  <span class="d">2.1s</span></div>
+        <div class="row"><span class="g">✓</span> Find the commit that broke fixed-amount coupons  <span class="d">1m 48s</span></div>
+        <div class="row"><span class="g">✓</span> Editing cart.ts  <span class="d">0.6s</span></div>
+        <div class="row"><span class="g">✓</span> Reset the bisect and rerun the cart tests  <span class="d">7.4s</span></div>
+        <div class="row"><span class="m">✎</span> <span class="d">Wrote the reply (47 words)  5.8s</span></div>
+        <div class="row"><span class="g">✓</span> <span class="d">Done in 2m 40s, 5 actions  2m 40s</span></div>
+      </div>
+    </div>
+  </section>
+
+  <section aria-labelledby="agents">
+    <h2 id="agents">Background agents get a row each</h2>
+    <p class="muted">They keep their row after your turn ends, while they're still working.</p>
+    <div class="box" role="img" aria-label="Two background agents, each with its task, its current step and how long it has run">
+      <div class="frame busy">
+        <div class="row">▸ <span class="c">●</span> <span class="b">Claude:</span> 2 agents working <span class="d">· 34s</span></div>
+        <div class="row"><span class="c">◆</span> <span class="b">Find callers of applyCoupon</span> › Searching for "applyCoupon("  <span class="d">34s</span></div>
+        <div class="row"><span class="c">◆</span> <span class="b">Check the coupon tests</span> › Reading coupon.test.ts  <span class="d">33s</span></div>
+      </div>
+    </div>
+  </section>
+
+  <section aria-labelledby="trust">
+    <h2 id="trust">It only displays</h2>
+    <div class="facts">
+      <div class="fact"><b>No network, no files</b><p>No telemetry, no processes, nothing kept between sessions. It reads the session's activity and draws the box.</p></div>
+      <div class="fact"><b>Changes nothing</b><p>Every hook passes its event on as it came. It never allows, denies or alters anything Claude does.</p></div>
+      <div class="fact"><b>Terminal and desktop</b><p>Runs in Claude Code in a terminal and in the desktop app's Code tab, as a mod built on function hooks.</p></div>
+    </div>
+  </section>
+
+  <footer>
+    <span>MIT · by Tzafrir Rehan</span>
+    <a href="https://github.com/tzafrir/whats-agent-doing">GitHub</a>
+    <a href="https://github.com/tzafrir/whats-agent-doing/issues">Report a problem</a>
+    <a href="privacy">Privacy</a>
+  </footer>
+</main>
+<script>
+  document.querySelectorAll('button.copy').forEach(function (button) {
+    button.addEventListener('click', function () {
+      var text = document.getElementById(button.dataset.for).textContent;
+      var done = function () {
+        button.textContent = 'Copied';
+        button.setAttribute('data-done', '');
+        setTimeout(function () { button.textContent = 'Copy'; button.removeAttribute('data-done'); }, 1600);
+      };
+      if (navigator.clipboard && navigator.clipboard.writeText) {
+        navigator.clipboard.writeText(text).then(done, function () { select(button.dataset.for); });
+      } else {
+        select(button.dataset.for);
+      }
+    });
+  });
+  function select(id) {
+    var range = document.createRange();
+    range.selectNodeContents(document.getElementById(id));
+    var selection = window.getSelection();
+    selection.removeAllRanges();
+    selection.addRange(range);
+  }
+</script>
+</body>
+</html>
