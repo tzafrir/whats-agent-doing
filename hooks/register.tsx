@@ -403,6 +403,10 @@ export const register: Register = on => {
       return next(e)
     }
 
+    // The band is one site for every plugin: what the plugins beneath draw
+    // stays, under the box, so another mod's band is never hidden.
+    const below = await next(e)
+
     const { Box, Text, Button } = $.ui.resolve(e)
 
     const headline = await read($, now)
@@ -476,27 +480,30 @@ export const register: Register = on => {
       : []
 
     return (
-      <Box
-        flexDirection="column"
-        borderStyle="round"
-        borderColor={isWorking ? color : 'gray'}
-        paddingX={1}
-        alignSelf="flex-start"
-      >
-        <Box key="activity" flexDirection="row">
-          <Button
-            key="toggle"
-            plain
-            label={isOpen ? '▾' : '▸'}
-            onPress={() => update($, isExpanded, open => !open)}
-          />
-          <Text color={color}>{isWorking ? ' ● ' : ' ○ '}</Text>
-          <Text bold>Claude: </Text>
-          <Text wrap="truncate-end">{printable(headline.label, MAX_LABEL_CHARS)}</Text>
-          <Text dimColor>{elapsed}</Text>
+      <Box flexDirection="column">
+        <Box
+          flexDirection="column"
+          borderStyle="round"
+          borderColor={isWorking ? color : 'gray'}
+          paddingX={1}
+          alignSelf="flex-start"
+        >
+          <Box key="activity" flexDirection="row">
+            <Button
+              key="toggle"
+              plain
+              label={isOpen ? '▾' : '▸'}
+              onPress={() => update($, isExpanded, open => !open)}
+            />
+            <Text color={color}>{isWorking ? ' ● ' : ' ○ '}</Text>
+            <Text bold>Claude: </Text>
+            <Text wrap="truncate-end">{printable(headline.label, MAX_LABEL_CHARS)}</Text>
+            <Text dimColor>{elapsed}</Text>
+          </Box>
+          {teamBox}
+          {body}
         </Box>
-        {teamBox}
-        {body}
+        {below}
       </Box>
     )
   })

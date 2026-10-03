@@ -37,6 +37,18 @@ const SPAWN = {
 const STEP = { turnId: 't1', model: 'claude-opus-5-5', messageCount: 1 } as const
 
 /**
+ * Stands for the engine beneath the band, which draws nothing of its own
+ * there (the surveys aside).
+ */
+function seatBand(on: On) {
+  on('ui.render', { component: 'AbovePrompt' }, ($, e) => {
+    const { Box } = $.ui.resolve(e)
+
+    return <Box key="engine" />
+  })
+}
+
+/**
  * Seats the engine beneath the plugin: a clock, turns, a model whose steps
  * yield `script[index]`, and tools that answer `toolAnswer`. `seen` keeps
  * what the box said at each `look()` a step or a tool takes.
@@ -50,6 +62,7 @@ function seat(on: On, script: readonly (readonly TurnStepChunk[])[]) {
   }
 
   const clock = mock.clock(on, { now: 1_000_000 })
+  seatBand(on)
 
   const look = async () => {
     box.seen.push(await box.read())
@@ -103,12 +116,32 @@ async function step($: Engine, index: number) {
 describe('register', () => {
   test('the box says idle before any turn, its triangle closed', async ($, on) => {
     mock.clock(on)
+    seatBand(on)
 
     const ui = await $.ui.mount(BAND)
     const text = (await ui.find({ key: 'activity' }))?.text ?? ''
 
     expect(text).toContain('Idle')
     expect(text).toContain('▸')
+  })
+
+  test('another plugin drawing the band keeps its box, under this one', async ($, on) => {
+    mock.clock(on)
+
+    on('ui.render', { component: 'AbovePrompt' }, ($, e) => {
+      const { Box, Text } = $.ui.resolve(e)
+
+      return (
+        <Box key="beneath">
+          <Text>2 tasks for you</Text>
+        </Box>
+      )
+    })
+
+    const ui = await $.ui.mount(BAND)
+
+    expect((await ui.find({ key: 'activity' }))?.text ?? '').toContain('Idle')
+    expect((await ui.find({ key: 'beneath' }))?.text ?? '').toContain('2 tasks for you')
   })
 
   test('a turn reads, thinks, prepares, runs, reviews, writes and ends', async ($, on) => {

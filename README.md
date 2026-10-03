@@ -101,7 +101,7 @@ Then start a new session (or run `/reload-plugins`). Update later with `claude p
 
 Parallel calls show the newest with `(+N more)`, and a timer counts how long the current state has lasted.
 
-Click the triangle (or focus the band with `ctrl+x tab` and press Enter) to expand the history: each prompt, stretch of thinking, tool call (✓ done, ✗ failed, ⊘ denied, ■ interrupted), reply and turn ending, with durations. The box steps aside while a survey holds the band; collapse the whole band with `ctrl+x ctrl+a`.
+Click the triangle (or focus the band with `ctrl+x tab` and press Enter) to expand the history: each prompt, stretch of thinking, tool call (✓ done, ✗ failed, ⊘ denied, ■ interrupted), reply and turn ending, with durations. The box steps aside while a survey holds the band; collapse the whole band with `ctrl+x ctrl+a`. Other mods that draw above the prompt keep their place: their boxes stack under this one.
 
 ## Data and privacy
 
@@ -138,7 +138,7 @@ Loading the plugin writes the API's types to `.claude-plugin/types/`, which `tsc
 | `hooks/activity-of.ts` | Turns a tool call, whole or still streaming, into its short label |
 | `hooks/text.ts` | Printable labels, thought snippets, word counts, sizes, durations |
 | `types/index.d.ts` | The `$.state` contract: the headline, the agents at work, the history, the toggle |
-| `tests/register.test.tsx` | Idle, a whole turn state by state, the history toggle, thinking and commands without repeats, hostile labels, an approval wait, background agents after the turn |
+| `tests/register.test.tsx` | Idle, a whole turn state by state, the history toggle, thinking and commands without repeats, hostile labels, an approval wait, background agents after the turn, another mod's band kept beneath |
 | `.claude-plugin/marketplace.json` | Makes this repository its own one-plugin marketplace |
 | `.claude-plugin/icon.png` | The listing icon: the box and its status dot above the prompt |
 
