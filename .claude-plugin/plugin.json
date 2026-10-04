@@ -1,7 +1,7 @@
 {
   "name": "whats-agent-doing",
   "displayName": "What's Agent Doing",
-  "version": "0.4.2",
+  "version": "0.4.3",
   "description": "A small box above the prompt that always says what the agent is doing right now (reading, thinking, writing, running a tool, waiting for you) and expands to show what it has done.",
   "author": {
     "name": "Tzafrir Rehan"

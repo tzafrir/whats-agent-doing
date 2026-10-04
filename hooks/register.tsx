@@ -427,10 +427,14 @@ export const register: Register = on => {
 
     const agentRows = listed.map((agent, i) => (
       <Box key={`agent-${i}`} flexDirection="row">
-        <Text color={PHASE_COLORS.agent}>{'◆ '}</Text>
+        <Box flexShrink={0}>
+          <Text color={PHASE_COLORS.agent}>{'◆ '}</Text>
+        </Box>
         <Text bold wrap="truncate-end">{printable(agent.name, MAX_AGENT_NAME_CHARS)}</Text>
         <Text wrap="truncate-end">{` › ${printable(agent.label, MAX_LABEL_CHARS)}`}</Text>
-        <Text dimColor>{`  ${durationOf(nowMs - agent.sinceMs)}`}</Text>
+        <Box flexShrink={0}>
+          <Text dimColor>{`  ${durationOf(nowMs - agent.sinceMs)}`}</Text>
+        </Box>
       </Box>
     ))
 
@@ -457,11 +461,15 @@ export const register: Register = on => {
 
       return (
         <Box key={`row-${i}`} flexDirection="row">
-          <Text color={markColor}>{`${mark} `}</Text>
+          <Box flexShrink={0}>
+            <Text color={markColor}>{`${mark} `}</Text>
+          </Box>
           <Text bold={entry.kind === 'turn'} dimColor={isQuiet} wrap="truncate-end">
             {printable(entry.label, MAX_LABEL_CHARS)}
           </Text>
-          <Text dimColor>{took}</Text>
+          <Box flexShrink={0}>
+            <Text dimColor>{took}</Text>
+          </Box>
         </Box>
       )
     })
@@ -495,10 +503,15 @@ export const register: Register = on => {
               label={isOpen ? '▾' : '▸'}
               onPress={() => update($, isExpanded, open => !open)}
             />
-            <Text color={color}>{isWorking ? ' ● ' : ' ○ '}</Text>
-            <Text bold>Claude: </Text>
+            {/* On a narrow screen only the label gives way: the rest would wrap. */}
+            <Box flexShrink={0}>
+              <Text color={color}>{isWorking ? ' ● ' : ' ○ '}</Text>
+              <Text bold>Claude: </Text>
+            </Box>
             <Text wrap="truncate-end">{printable(headline.label, MAX_LABEL_CHARS)}</Text>
-            <Text dimColor>{elapsed}</Text>
+            <Box flexShrink={0}>
+              <Text dimColor>{elapsed}</Text>
+            </Box>
           </Box>
           {teamBox}
           {body}
